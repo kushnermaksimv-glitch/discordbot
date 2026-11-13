@@ -3,6 +3,7 @@ from discord.ext import commands, tasks
 import datetime
 import os
 import asyncio
+import random
 from aiohttp import web
 
 async def handle(request):
@@ -23,19 +24,48 @@ intents.messages = True
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-CHANNEL_ID = 1570716369664745573  # Замените на ID вашего канала (тот самый длинный номер)
+
+# Ваш ID канала уже здесь:
+CHANNEL_ID = 1570716369664745573
+
+# 5 случайных фраз для проверки тишины
+SILENCE_PHRASES = [
+    "Что молчим? Чего не пишем?",
+    "Эй, пятница на дворе! Куда все пропали?",
+    "Тишина в эфире... Давайте оживлять чат!",
+    "Ау! Есть кто живой? Делитесь новостями!",
+    "Чего притихли? Кто первый напишет сообщение?"
+]
+
+last_message_time = datetime.datetime.utcnow()
+silence_notified = False
 
 @bot.event
 async def on_ready():
+    global last_message_time
+    last_message_time = datetime.datetime.utcnow()
     print(f"Бот {bot.user} запущен!")
     
-    # Отправляем сообщение в конкретный канал при запуске
     channel = bot.get_channel(CHANNEL_ID)
     if channel:
         await channel.send("🟢 Бот успешно запущен и работает!")
     
     if not check_day.is_running():
         check_day.start()
+    if not check_silence.is_running():
+        check_silence.start()
+
+@bot.event
+async def on_message(message):
+    global last_message_time, silence_notified
+    
+    if message.author.bot or message.channel.id != CHANNEL_ID:
+        return
+
+    last_message_time = datetime.datetime.utcnow()
+    silence_notified = False
+    
+    await bot.process_commands(message)
 
 @tasks.loop(minutes=30)
 async def check_day():
@@ -57,6 +87,23 @@ async def check_day():
         if overwrite.send_messages is not False:
             overwrite.send_messages = False
             await channel.set_permissions(role, overwrite=overwrite)
+
+@tasks.loop(minutes=5)
+async def check_silence():
+    global silence_notified
+    channel = bot.get_channel(CHANNEL_ID)
+    if not channel:
+        return
+
+    now_msk = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
+    if now_msk.weekday() != 4:
+        return
+
+    time_passed = (datetime.datetime.utcnow() - last_message_time).total_seconds()
+    if time_passed >= 3600 and not silence_notified:
+        phrase = random.choice(SILENCE_PHRASES)
+        await channel.send(phrase)
+        silence_notified = True
 
 async def main():
     token = os.environ.get("DISCORD_TOKEN")
