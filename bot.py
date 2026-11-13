@@ -2,9 +2,9 @@ import discord
 from discord.ext import commands, tasks
 import datetime
 import os
+import asyncio
 from aiohttp import web
 
-# Настройка веб-сервера для Render (чтобы сервис не выключался)
 async def handle(request):
     return web.Response(text="Bot is running!")
 
@@ -23,12 +23,13 @@ intents.messages = True
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-CHANNEL_ID = 123456789012345678  # ID вашего канала
+CHANNEL_ID = 1570718048854474792  # Замените на ID вашего канала
 
 @bot.event
 async def on_ready():
     print(f"Бот {bot.user} запущен!")
-    check_day.start()
+    if not check_day.is_running():
+        check_day.start()
 
 @tasks.loop(minutes=30)
 async def check_day():
@@ -36,30 +37,27 @@ async def check_day():
     if not channel:
         return
 
-    now = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
-    current_weekday = now.weekday()
+    now = datetime.datetime.utcnow() + datetime.timedelta(hours=3)  # +3 для МСК
+    current_weekday = now.weekday()  # 4 — это пятница
     role = channel.guild.default_role
     overwrite = channel.overwrites_for(role)
 
     if current_weekday == 4:
-        if overwrite.send_messages != True:
+        if overwrite.send_messages is not True:
             overwrite.send_messages = True
             await channel.set_permissions(role, overwrite=overwrite)
             await channel.send("📢 Канал открыт! Сегодня пятница, можете писать сообщения.")
     else:
-        if overwrite.send_messages != False:
+        if overwrite.send_messages is not False:
             overwrite.send_messages = False
             await channel.set_permissions(role, overwrite=overwrite)
 
-# Запускаем и веб-сервер, и бота одновременно
 async def main():
     token = os.environ.get("DISCORD_TOKEN")
     if not token:
         print("Ошибка: Токен не найден!")
         return
-    
     await web_server()
     await bot.start(token)
 
-import asyncio
 asyncio.run(main())
