@@ -23,7 +23,7 @@ intents.messages = True
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-CHANNEL_ID = 123456789012345678  # Замените на ID вашего канала (тот самый длинный номер)
+CHANNEL_ID = 1570716369664745573  # Замените на ID вашего канала (тот самый длинный номер)
 
 @bot.event
 async def on_ready():
