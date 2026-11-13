@@ -25,7 +25,7 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Ваш ID канала уже здесь:
+# Ваш ID канала
 CHANNEL_ID = 1570716369664745573
 
 # 5 случайных фраз для проверки тишины
@@ -50,8 +50,9 @@ async def on_ready():
     if channel:
         await channel.send("🟢 Бот успешно запущен и работает!")
     
-    if not check_day.is_running():
-        check_day.start()
+    # Запускаем фоновые задачи, если они еще не запущены
+    if not check_schedule.is_running():
+        check_schedule.start()
     if not check_silence.is_running():
         check_silence.start()
 
@@ -67,23 +68,28 @@ async def on_message(message):
     
     await bot.process_commands(message)
 
-@tasks.loop(minutes=30)
-async def check_day():
+# Проверяем расписание КАЖДУЮ МИНУТУ, чтобы закрывать/открывать вовремя
+@tasks.loop(minutes=1)
+async def check_schedule():
     channel = bot.get_channel(CHANNEL_ID)
     if not channel:
         return
 
-    now = datetime.datetime.utcnow() + datetime.timedelta(hours=3)  # +3 для МСК
-    current_weekday = now.weekday()  # 4 — это пятница
+    # Получаем точное время по Москве (UTC+3)
+    now_msk = datetime.datetime.utcnow() + datetime.timedelta(hours=3)
+    current_weekday = now_msk.weekday()  # 4 — это пятница
+    
     role = channel.guild.default_role
     overwrite = channel.overwrites_for(role)
 
+    # Если сегодня пятница (по МСК)
     if current_weekday == 4:
         if overwrite.send_messages is not True:
             overwrite.send_messages = True
             await channel.set_permissions(role, overwrite=overwrite)
-            await channel.send("📢 Канал открыт! Сегодня пятница, можете писать сообщения.")
+            await channel.send("📢 Канал открыт! Наступила пятница, можете писать сообщения.")
     else:
+        # Во все остальные дни недели канал закрыт
         if overwrite.send_messages is not False:
             overwrite.send_messages = False
             await channel.set_permissions(role, overwrite=overwrite)
